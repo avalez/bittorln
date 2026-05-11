@@ -1,0 +1,12 @@
+SocksPort 0.0.0.0:9050
+ControlPort 0.0.0.0:9051
+CookieAuthentication 0
+HashedControlPassword 16:FAC72A76BDD2A616607F8A5F7A6B2DD5B4CCDB14C56D957682CEE74A97
+
+HiddenServiceDir /var/lib/tor/bitcoin-service/
+HiddenServicePort 8333 bitcoin-node:8333
+HiddenServicePort 8332 bitcoin-node:8332
+
+HiddenServiceVersion 3
+MaxClientCircuitsPending 64
+NumEntryGuards 8

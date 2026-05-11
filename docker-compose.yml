@@ -1,0 +1,89 @@
+services:
+  tor:
+    image: alpine:latest
+    container_name: tor-service
+    command: sh -c "apk add --no-cache tor && tor -f /etc/tor/torrc"
+    restart: unless-stopped
+    ports:
+      - 9050:9050
+      - 9051:9051
+      - 9053:9053
+    volumes:
+      - /Volumes/tor:/var/lib/tor
+      - /Volumes/tor/torrc:/etc/tor/torrc
+    networks:
+      - bitcoin-net
+
+  bitcoin:
+    image: bitcoin/bitcoin:latest
+    container_name: bitcoin-node
+    restart: unless-stopped
+    depends_on:
+      - tor
+    environment:
+      - BITCOIN_DATA=/home/bitcoin/.bitcoin
+    ports:
+      - "8333:8333"  # Standard P2P (Optional if using Tor only)
+      - "8332:8332"  # RPC Port for your JS scripts
+    volumes:
+      - /Volumes/bitcoin:/home/bitcoin/.bitcoin
+    networks:
+      - bitcoin-net
+    command:
+      - -printtoconsole
+#      - -reindex
+#      - -txindex=1
+      - -server=1
+      - -rpcuser=${RPCUSER}
+      - -rpcpassword=${RPCPASS}
+      - -rpcallowip=0.0.0.0/0
+      - -rpcbind=0.0.0.0
+      - -proxy=tor-service:9050
+      - -onion=tor-service:9050
+      - -listen=1
+      - -listenonion=1
+      - -onlynet=onion
+      - -torcontrol=tor-service:9051
+      - -torpassword=password  # Default for this specific Tor image
+      - -prune=30000            # Keeping it lean as we discussed!
+      - -dbcache=2048
+      - -zmqpubrawblock=tcp://0.0.0.0:28332
+      - -zmqpubrawtx=tcp://0.0.0.0:28333
+
+  lnd:
+     image: lightninglabs/lnd:v0.21.0-beta.rc1
+     container_name: lnd
+     depends_on:
+       - bitcoin
+       - tor
+     volumes:
+        - /Volumes/lnd:/root/.lnd
+        - /Volumes/bitcoin:/home/bitcoin/.bitcoin
+     command:
+        - --bitcoin.mainnet
+        - --bitcoin.node=bitcoind
+        - --bitcoind.rpcuser=${RPCUSER}
+        - --bitcoind.rpcpass=${RPCPASS}
+        - --bitcoind.rpchost=bitcoin-node:8332
+        - --bitcoind.zmqpubrawblock=tcp://bitcoin-node:28332
+        - --bitcoind.zmqpubrawtx=tcp://bitcoin-node:28333
+        - --wtclient.active
+     networks:
+       - bitcoin-net
+
+#  electrs:
+#    image: mempool/electrs
+#    container_name: electrs
+#    depends_on:
+#      - bitcoin
+#    environment:
+#      - ELECTRS_DAEMON_RPC_ADDR=bitcoin-node:8332
+#      - ELECTRS_DAEMON_P2P_ADDR=bitcoin-node:8333
+#      - ELECTRS_NETWORK=bitcoin
+#      - ELECTRS_ELECTRUM_RPC_ADDR=0.0.0.0:50001
+#    ports:
+#      - "50001:50001"
+
+networks:
+  bitcoin-net:
+    driver: bridge
